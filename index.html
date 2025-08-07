@@ -202,12 +202,12 @@
             <table>
                 <thead><tr>
                     <th style="width: 15%;">Name</th>
-                    <th v-for="filter in activeExperiment.filters" :key="filter.name">{{ filter.name }}</th>
+                    <th v-for="filter in activeExperiment.filters" :key="filter.id">{{ filter.name }}</th>
                     <th style="width: 20%;">작업</th>
                 </tr></thead>
                 <tbody><tr v-for="row in processedData" :key="row.id">
                     <td>{{ row.name }}</td>
-                    <td v-for="filter in activeExperiment.filters" :key="filter.name">
+                    <td v-for="filter in activeExperiment.filters" :key="filter.id">
                         <span :title="row.values[filter.name]?.error || ''" :style="{color: row.values[filter.name]?.error ? 'var(--danger-color)' : 'inherit'}">
                             {{ row.values[filter.name]?.value || 'N/A' }}
                         </span>
@@ -265,6 +265,8 @@
             const draggingFilterId = ref(null);
             const dragStartIndex = ref(-1);
 
+            const compiledFilters = ref([]);
+
             // --- LOCAL STORAGE ---
             const STORAGE_KEY = 'experiment-app-data';
             const saveState = () => localStorage.setItem(STORAGE_KEY, JSON.stringify(experiments.value));
@@ -294,20 +296,37 @@
 
             // --- COMPUTED ---
             const activeExperiment = computed(() => experiments.value.find(exp => exp.id === activeExperimentId.value));
+            
+            watch(() => activeExperiment.value?.filters, (newFilters) => {
+                if (!newFilters) {
+                    compiledFilters.value = [];
+                    return;
+                }
+                compiledFilters.value = newFilters.map(filter => {
+                    if (filter.name && filter.regex && filter.group > 0) {
+                        try {
+                            return { ...filter, compiledRegex: new RegExp(filter.regex) };
+                        } catch (e) {
+                            return { ...filter, compileError: e.message };
+                        }
+                    }
+                    return filter;
+                });
+            }, { deep: true, immediate: true });
+
             const processedData = computed(() => {
-                if (!activeExperiment.value) return [];
+                if (!activeExperiment.value || !compiledFilters.value) return [];
+
                 return activeExperiment.value.data.map(dataRow => {
                     const values = {};
-                    activeExperiment.value.filters.forEach(filter => {
+                    compiledFilters.value.forEach(filter => {
                         let result = { value: null, error: null };
-                        if (filter.name && filter.regex && filter.group > 0) {
-                            try {
-                                const re = new RegExp(filter.regex);
-                                const match = dataRow.rawText.match(re);
-                                result.value = (match && match[filter.group]) ? match[filter.group] : null;
-                            } catch (e) {
-                                result.value = '정규식 오류'; result.error = e.message;
-                            }
+                        if (filter.compiledRegex) {
+                            const match = dataRow.rawText.match(filter.compiledRegex);
+                            result.value = (match && match[filter.group]) ? match[filter.group] : null;
+                        } else if (filter.compileError) {
+                            result.value = '정규식 오류';
+                            result.error = filter.compileError;
                         }
                         values[filter.name] = result;
                     });
@@ -347,13 +366,9 @@
 
             const deleteExperiment = (id) => {
                 if (confirm('실험을 삭제하면 모든 데이터가 사라집니다. 계속하시겠습니까?')) {
-                    const initialHash = window.location.hash;
                     experiments.value = experiments.value.filter(exp => exp.id !== id);
                     if (activeExperimentId.value === id) {
                         goHome();
-                    } else if (initialHash !== window.location.hash) {
-                         // 해시가 바뀌었다면 (예: 뒤로가기) 다시 파싱
-                        parseHash();
                     }
                 }
             };
