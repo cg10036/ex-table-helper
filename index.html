@@ -73,9 +73,37 @@
         .experiment-name { font-size: 1.2rem; font-weight: 500; }
 
         .filter-item {
-            display: grid; grid-template-columns: auto 1fr 3fr 1fr auto;
-            gap: 1rem; align-items: center; padding: 0.8rem 0;
+            display: grid;
+            grid-template-columns: auto 1fr 3fr auto;
+            gap: 1rem;
+            align-items: center;
+            padding: 0.8rem 0;
             border-bottom: 1px dashed var(--border-color);
+        }
+        .filter-name-input {
+            grid-column: 2;
+        }
+        .filter-details-container {
+            grid-column: 3;
+            display: grid;
+            gap: 0.5rem;
+        }
+        .regex-container {
+            grid-template-columns: 1fr 1fr;
+        }
+        .script-container {
+            grid-template-columns: 1fr;
+        }
+        .script-input {
+            font-family: 'Courier New', Courier, monospace;
+            background-color: #f0f8ff;
+            color: #35495e;
+            border: 1px solid #cce7ff;
+        }
+        .filter-name-input.has-error,
+        .script-input.has-error {
+            border-color: var(--danger-color);
+            background-color: #fff0f0;
         }
         .drag-handle {
             cursor: grab;
@@ -166,24 +194,37 @@
                          :key="filter.id"
                          class="filter-item"
                          :class="{ 'dragging': draggingFilterId === filter.id }"
-                         draggable="true"
-                         @dragstart="handleDragStart(filter, index, $event)"
                          @dragover.prevent="handleDragOver(index, $event)"
                          @dragleave="handleDragLeave($event)"
-                         @drop="handleDrop(index, $event)"
-                         @dragend="handleDragEnd">
-                <span class="drag-handle">☰</span>
-                <input type="text" v-model="filter.name" placeholder="필터 이름">
-                <input type="text" v-model="filter.regex" placeholder="정규식" @input="validateFilterGroup(filter)">
-                <select v-model.number="filter.group" :disabled="getRegexGroups(filter.regex).length === 0">
-                    <option v-if="getRegexGroups(filter.regex).length === 0" :value="1">그룹 없음</option>
-                    <option v-for="group in getRegexGroups(filter.regex)" :key="group.index" :value="group.index" :title="group.text">
-                        그룹 {{ group.index }}: ({{ group.text.length > 20 ? group.text.slice(0, 20) + '...' : group.text }})
-                    </option>
-                </select>
+                         @drop="handleDrop(index, $event)">
+                <span class="drag-handle" 
+                      draggable="true"
+                      @dragstart="handleDragStart(filter, index, $event)"
+                      @dragend="handleDragEnd">☰</span>
+                <input type="text" v-model="filter.name" placeholder="필터 이름" class="filter-name-input"
+                       :class="{ 'has-error': duplicateFilterNames.has(filter.name) }">
+
+                <div v-if="filter.type === 'regex'" class="filter-details-container regex-container">
+                    <input type="text" v-model="filter.regex" placeholder="정규식" @input="validateFilterGroup(filter)">
+                    <select v-model.number="filter.group" :disabled="getRegexGroups(filter.regex).length === 0">
+                        <option v-if="getRegexGroups(filter.regex).length === 0" :value="1">그룹 없음</option>
+                        <option v-for="group in getRegexGroups(filter.regex)" :key="group.index" :value="group.index" :title="group.text">
+                            그룹 {{ group.index }}: ({{ group.text.length > 20 ? group.text.slice(0, 20) + '...' : group.text }})
+                        </option>
+                    </select>
+                </div>
+
+                <div v-else-if="filter.type === 'script'" class="filter-details-container script-container">
+                    <input type="text" v-model="filter.script" placeholder="스크립트 입력 (예: f('A') + f('B'))" class="script-input"
+                           :class="{ 'has-error': scriptErrorFilterIds.has(filter.id) }">
+                </div>
+
                 <button class="btn btn-danger" @click="removeFilter(index)">삭제</button>
             </div>
-            <button class="btn btn-primary" @click="addFilter" style="margin-top: 1rem;">필터 추가</button>
+            <div class="flex-container" style="margin-top: 1rem; gap: 0.5rem;">
+                <button class="btn btn-primary" @click="addFilter('regex')">정규식 필터 추가</button>
+                <button class="btn btn-info" @click="addFilter('script')">스크립트 필터 추가</button>
+            </div>
         </div>
 
         <div class="card">
@@ -214,7 +255,7 @@
                     <td>{{ row.name }}</td>
                     <td v-for="filter in activeExperiment.filters" :key="filter.id">
                         <span :title="row.values[filter.name]?.error || ''" :style="{color: row.values[filter.name]?.error ? 'var(--danger-color)' : 'inherit'}">
-                            {{ row.values[filter.name]?.value || 'N/A' }}
+                            {{ row.values[filter.name]?.value ?? 'N/A' }}
                         </span>
                     </td>
                     <td><div class="flex-container" style="gap: 0.5rem;">
@@ -270,7 +311,7 @@
             const draggingFilterId = ref(null);
             const dragStartIndex = ref(-1);
 
-            const compiledFilters = ref([]);
+            const executionPlan = ref({ sortedFilters: [], cyclicFilterNames: new Set() });
 
             // --- LOCAL STORAGE ---
             const STORAGE_KEY = 'experiment-app-data';
@@ -278,22 +319,31 @@
             const loadState = () => {
                 const savedData = localStorage.getItem(STORAGE_KEY);
                 if (savedData) {
-                    const loadedExperiments = JSON.parse(savedData);
-                    // Ensure filters have unique IDs for older data
-                    loadedExperiments.forEach(exp => {
-                        exp.filters.forEach(filter => {
-                            if (!filter.id) filter.id = Date.now() + Math.random();
-                        });
+                    let loadedExperiments = JSON.parse(savedData);
+                    // Ensure experiments and filters have all required properties for compatibility
+                    experiments.value = loadedExperiments.map(exp => {
+                        const filters = (exp.filters || []).map(filter => ({
+                            id: filter.id || Date.now() + Math.random(),
+                            type: filter.type || 'regex',
+                            name: filter.name || '',
+                            regex: filter.regex || '',
+                            group: filter.group === undefined ? 1 : filter.group,
+                            script: filter.script || ''
+                        }));
+                        return { ...exp, filters };
                     });
-                    experiments.value = loadedExperiments;
                 } else { // 초기 예제 데이터
                     experiments.value = [{
-                        id: Date.now(), name: "성능 측정 예제",
+                        id: Date.now(), name: "복합 필터 예제",
                         filters: [
-                            { id: 1, name: 'GDB', regex: 'GDB load time: (\\d+\\.\\d+)', group: 1 },
-                            { id: 2, name: 'disassemble', regex: 'disassemble time: (\\d+\\.\\d+)', group: 1 },
+                            { id: 1, type: 'regex', name: 'a', regex: 'A: (\\d+)', group: 1, script: '' },
+                            { id: 2, type: 'regex', name: 'total', regex: 'TOTAL: (\\d+)', group: 1, script: '' },
+                            { id: 3, type: 'script', name: 'b', regex: '', group: 1, script: 'i("a") + 1' },
+                            { id: 4, type: 'script', name: 'c', regex: '', group: 1, script: 'i`a` + 2' },
+                            { id: 5, type: 'script', name: 'other', regex: '', group: 1, script: 'i(`total`) - i`a` - i(\'b\') - i("c")' },
+                            { id: 6, type: 'script', name: 'help', regex: '', group: 1, script: '// i("정수") f("실수") s("문자열")' },
                         ],
-                        data: [{ id: 1, name: 'bs4', rawText: `GDB load time: 0.85 sec\ndisassemble time: 26.29 sec` }]
+                        data: [{ id: 1, name: 'example', rawText: "A: 1\nTOTAL: 10" }]
                     }];
                 }
             };
@@ -301,14 +351,93 @@
 
             // --- COMPUTED ---
             const activeExperiment = computed(() => experiments.value.find(exp => exp.id === activeExperimentId.value));
+
+            const duplicateFilterNames = computed(() => {
+                if (!activeExperiment.value) return new Set();
+                const names = new Set();
+                const duplicates = new Set();
+                for (const filter of activeExperiment.value.filters) {
+                    if (filter.name) { // only check non-empty names
+                        if (names.has(filter.name)) {
+                            duplicates.add(filter.name);
+                        }
+                        names.add(filter.name);
+                    }
+                }
+                return duplicates;
+            });
+
+            const scriptErrorFilterIds = computed(() => {
+                const errorIds = new Set();
+                if (!activeExperiment.value || !processedData.value) return errorIds;
+
+                const scriptFilters = activeExperiment.value.filters.filter(f => f.type === 'script');
+
+                for (const row of processedData.value) {
+                    for (const filter of scriptFilters) {
+                        if (row.values[filter.name]?.error) {
+                            errorIds.add(filter.id);
+                        }
+                    }
+                }
+                return errorIds;
+            });
             
             watch(() => activeExperiment.value?.filters, (newFilters) => {
-                if (!newFilters) {
-                    compiledFilters.value = [];
+                if (!newFilters || newFilters.length === 0) {
+                    executionPlan.value = { sortedFilters: [], cyclicFilterNames: new Set() };
                     return;
                 }
-                compiledFilters.value = newFilters.map(filter => {
-                    if (filter.name && filter.regex && filter.group > 0) {
+
+                const filterMap = new Map(newFilters.map(f => [f.name, { ...f }]));
+                const adj = new Map();
+                const inDegree = new Map();
+                const filterNames = Array.from(filterMap.keys());
+
+                for (const name of filterNames) {
+                    adj.set(name, []);
+                    inDegree.set(name, 0);
+                }
+
+                const depRegex = /(?:i|f|s)\s*\(\s*(?:"([^"]+)"|'([^']+)'|`([^`]+)`)\s*\)/g;
+                for (const filter of newFilters) {
+                    if (filter.type === 'script' && filter.script) {
+                        let match;
+                        while ((match = depRegex.exec(filter.script)) !== null) {
+                            const depName = match[1] || match[2] || match[3];
+                            if (filterMap.has(depName) && filter.name !== depName) {
+                                adj.get(depName).push(filter.name);
+                                inDegree.set(filter.name, inDegree.get(filter.name) + 1);
+                            }
+                        }
+                    }
+                }
+
+                const queue = filterNames.filter(name => inDegree.get(name) === 0);
+                const sortedOrder = [];
+                while (queue.length > 0) {
+                    const name = queue.shift();
+                    sortedOrder.push(name);
+                    for (const neighborName of adj.get(name)) {
+                        inDegree.set(neighborName, inDegree.get(neighborName) - 1);
+                        if (inDegree.get(neighborName) === 0) {
+                            queue.push(neighborName);
+                        }
+                    }
+                }
+
+                const cyclicFilterNames = new Set();
+                if (sortedOrder.length < filterNames.length) {
+                    for (const name of filterNames) {
+                        if (inDegree.get(name) > 0) {
+                            cyclicFilterNames.add(name);
+                        }
+                    }
+                }
+                
+                const sortedFilters = sortedOrder.map(name => {
+                    const filter = filterMap.get(name);
+                    if (filter.type === 'regex' && filter.regex) {
                         try {
                             return { ...filter, compiledRegex: new RegExp(filter.regex) };
                         } catch (e) {
@@ -317,26 +446,64 @@
                     }
                     return filter;
                 });
+                
+                executionPlan.value = { sortedFilters, cyclicFilterNames };
+
             }, { deep: true, immediate: true });
 
             const processedData = computed(() => {
-                if (!activeExperiment.value || !compiledFilters.value) return [];
+                if (!activeExperiment.value) return [];
 
-                return activeExperiment.value.data.map(dataRow => {
+                const { sortedFilters, cyclicFilterNames } = executionPlan.value;
+                const allFilterNames = new Set(activeExperiment.value.filters.map(f => f.name));
+
+                 return activeExperiment.value.data.map(dataRow => {
                     const values = {};
-                    compiledFilters.value.forEach(filter => {
+
+                    // Initialize all results
+                    for (const filter of activeExperiment.value.filters) {
+                        values[filter.name] = { value: null, error: null };
+                    }
+
+                    // Mark cyclic filters with an error
+                    for (const name of cyclicFilterNames) {
+                        if (allFilterNames.has(name)) {
+                           values[name] = { value: '순환 참조!', error: 'This filter is part of a dependency cycle.' };
+                        }
+                    }
+
+                    // Execute topologically sorted filters
+                    for (const filter of sortedFilters) {
                         let result = { value: null, error: null };
-                        if (filter.compiledRegex) {
-                            const match = dataRow.rawText.match(filter.compiledRegex);
-                            result.value = (match && match[filter.group]) ? match[filter.group] : null;
-                        } else if (filter.compileError) {
-                            result.value = '정규식 오류';
-                            result.error = filter.compileError;
+                        
+                        if (filter.type === 'regex') {
+                             if (filter.compiledRegex) {
+                                const match = dataRow.rawText.match(filter.compiledRegex);
+                                result.value = (match && match[filter.group]) ? match[filter.group] : null;
+                            } else if (filter.compileError) {
+                                result.value = '정규식 오류';
+                                result.error = filter.compileError;
+                            }
+                        } else if (filter.type === 'script') {
+                             const s = (name) => {
+                                if (cyclicFilterNames.has(name)) throw new Error(`Dependency '${name}' is part of a cycle.`);
+                                if (!values.hasOwnProperty(name)) throw new Error(`Dependency '${name}' not found or not yet calculated.`);
+                                return String(values[name]?.value || '');
+                            };
+                            const i = (name) => parseInt(s(name), 10) || 0;
+                            const f = (name) => parseFloat(s(name)) || 0.0;
+                             
+                             try {
+                                result.value = filter.script ? new Function('i', 'f', 's', `return ${filter.script}`)(i, f, s) : null;
+                             } catch (e) {
+                                 result.value = '스크립트 오류';
+                                 result.error = e.message;
+                             }
                         }
                         values[filter.name] = result;
-                    });
-                    return { ...dataRow, values };
-                });
+                    }
+                     return { ...dataRow, values };
+                 });
             });
 
             // --- METHODS ---
@@ -445,7 +612,17 @@
                     window.location.hash = '#/';
                 }
             };
-            const addFilter = () => activeExperiment.value.filters.push({ id: Date.now(), name: '', regex: '', group: 1 });
+            const addFilter = (type) => {
+                const newFilter = {
+                    id: Date.now(),
+                    type: type, // 'regex' or 'script'
+                    name: '',
+                    regex: '',
+                    group: 1,
+                    script: ''
+                };
+                activeExperiment.value.filters.push(newFilter);
+            };
             const removeFilter = (index) => activeExperiment.value.filters.splice(index, 1);
             const addData = () => {
                 if (!newData.value.name.trim() || !newData.value.rawText.trim()) return;
@@ -467,7 +644,7 @@
             const copyMarkdown = () => {
                 const headers = ['Name', ...activeExperiment.value.filters.map(f => f.name)];
                 const rows = processedData.value.map(row => {
-                    const rowData = [row.name, ...activeExperiment.value.filters.map(filter => row.values[filter.name]?.value || 'N/A')];
+                    const rowData = [row.name, ...activeExperiment.value.filters.map(filter => row.values[filter.name]?.value ?? 'N/A')];
                     return `| ${rowData.join(' | ')} |`;
                 });
                 const markdown = [`| ${headers.join(' | ')} |`, `| ${headers.map(()=>'---').join(' | ')} |`, ...rows].join('\n');
@@ -491,6 +668,15 @@
                 dragStartIndex.value = index;
                 event.dataTransfer.effectAllowed = 'move';
                 event.dataTransfer.setData('text/plain', index);
+
+                // Set a custom drag image to show the whole item, not just the handle
+                const dragImage = event.currentTarget.closest('.filter-item');
+                if (dragImage) {
+                    const rect = dragImage.getBoundingClientRect();
+                    const offsetX = event.clientX - rect.left;
+                    const offsetY = event.clientY - rect.top;
+                    event.dataTransfer.setDragImage(dragImage, offsetX, offsetY);
+                }
             };
             
             const handleDragOver = (index, event) => {
@@ -533,6 +719,8 @@
                 newData, processedData, copyButtonText, isEditingName,
                 isViewModalVisible, isEditModalVisible, modalText, editingData,
                 draggingFilterId, // expose to template
+                duplicateFilterNames, // expose for styling
+                scriptErrorFilterIds, // expose for styling
                 createExperiment, deleteExperiment, duplicateExperiment, viewExperiment, goHome, addFilter, removeFilter,
                 addData, deleteData, saveEdit, copyMarkdown, showRawTextModal, showEditModal, closeModal,
                 handleDragStart, handleDragOver, handleDragLeave, handleDrop, handleDragEnd, // expose to template
