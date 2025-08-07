@@ -55,7 +55,7 @@
         .btn-warning { background-color: var(--warning-color); color: white; }
         .btn-warning:hover { background-color: #f59100; }
         
-        input[type="text"], input[type="number"], textarea {
+        input[type="text"], input[type="number"], select, textarea {
             width: 100%; padding: 0.6rem; border: 1px solid var(--border-color);
             border-radius: 5px; font-size: 1rem; box-sizing: border-box;
         }
@@ -174,8 +174,13 @@
                          @dragend="handleDragEnd">
                 <span class="drag-handle">☰</span>
                 <input type="text" v-model="filter.name" placeholder="필터 이름">
-                <input type="text" v-model="filter.regex" placeholder="정규식">
-                <input type="number" v-model.number="filter.group" placeholder="캡쳐 그룹">
+                <input type="text" v-model="filter.regex" placeholder="정규식" @input="validateFilterGroup(filter)">
+                <select v-model.number="filter.group" :disabled="getRegexGroups(filter.regex).length === 0">
+                    <option v-if="getRegexGroups(filter.regex).length === 0" :value="1">그룹 없음</option>
+                    <option v-for="group in getRegexGroups(filter.regex)" :key="group.index" :value="group.index" :title="group.text">
+                        그룹 {{ group.index }}: ({{ group.text.length > 20 ? group.text.slice(0, 20) + '...' : group.text }})
+                    </option>
+                </select>
                 <button class="btn btn-danger" @click="removeFilter(index)">삭제</button>
             </div>
             <button class="btn btn-primary" @click="addFilter" style="margin-top: 1rem;">필터 추가</button>
@@ -335,6 +340,58 @@
             });
 
             // --- METHODS ---
+            const getRegexGroups = (regex) => {
+                if (!regex) return [];
+                try {
+                    new RegExp(regex);
+                } catch (e) {
+                    return []; // Return empty for invalid regex
+                }
+                const groups = [];
+                // This regex finds the start of a capturing group.
+                // It looks for a '(' that is not escaped `(?<!\\)` and not a non-capturing group `(?!\?:)`.
+                const groupStartRegex = /(?<!\\)\((?!\?:)/g;
+                let match;
+
+                while ((match = groupStartRegex.exec(regex)) !== null) {
+                    let balance = 1; // Start with 1 for the opening parenthesis we just found
+                    let content = '';
+                    for (let i = match.index + 1; i < regex.length; i++) {
+                        const char = regex[i];
+                        if (char === '\\') {
+                            content += char + (regex[i + 1] || '');
+                            i++;
+                            continue;
+                        }
+                        if (char === '(') {
+                            balance++;
+                        } else if (char === ')') {
+                            balance--;
+                        }
+                        if (balance === 0) {
+                            groups.push({
+                                index: groups.length + 1,
+                                text: content
+                            });
+                            break; // Exit inner loop and look for next group
+                        }
+                        content += char;
+                    }
+                }
+                return groups;
+            };
+            
+            const validateFilterGroup = (filter) => {
+                const maxGroups = getRegexGroups(filter.regex).length;
+                if (maxGroups === 0) {
+                    filter.group = 1; // '그룹 없음' 상태의 기본값
+                } else if (filter.group > maxGroups) {
+                    filter.group = maxGroups; // 범위를 벗어나면 가장 큰 그룹으로 설정
+                } else if (filter.group <= 0) {
+                    filter.group = 1; // 유효한 그룹이 있지만 0 이하로 설정된 경우 1로 보정
+                }
+            };
+
             const createExperiment = () => {
                 if (!newExperimentName.value.trim()) return;
                 const newExp = { id: Date.now(), name: newExperimentName.value.trim(), filters: [], data: [] };
@@ -478,7 +535,8 @@
                 draggingFilterId, // expose to template
                 createExperiment, deleteExperiment, duplicateExperiment, viewExperiment, goHome, addFilter, removeFilter,
                 addData, deleteData, saveEdit, copyMarkdown, showRawTextModal, showEditModal, closeModal,
-                handleDragStart, handleDragOver, handleDragLeave, handleDrop, handleDragEnd // expose to template
+                handleDragStart, handleDragOver, handleDragLeave, handleDrop, handleDragEnd, // expose to template
+                getRegexGroups, validateFilterGroup
             };
         }
     });
