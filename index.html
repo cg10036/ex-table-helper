@@ -73,9 +73,23 @@
         .experiment-name { font-size: 1.2rem; font-weight: 500; }
 
         .filter-item {
-            display: grid; grid-template-columns: 1fr 3fr 1fr auto;
+            display: grid; grid-template-columns: auto 1fr 3fr 1fr auto;
             gap: 1rem; align-items: center; padding: 0.8rem 0;
             border-bottom: 1px dashed var(--border-color);
+        }
+        .drag-handle {
+            cursor: grab;
+            padding-right: 0.5rem;
+            color: #aaa;
+            font-size: 1.2rem;
+            user-select: none;
+        }
+        .filter-item.dragging {
+            opacity: 0.5;
+            background: #eef8f3;
+        }
+        .drag-over-active {
+            border-top: 2px solid var(--primary-color) !important;
         }
 
         table {
@@ -148,7 +162,17 @@
         
         <div class="card">
             <h2>전역 필터 설정</h2>
-            <div v-for="(filter, index) in activeExperiment.filters" :key="index" class="filter-item">
+            <div v-for="(filter, index) in activeExperiment.filters"
+                         :key="filter.id"
+                         class="filter-item"
+                         :class="{ 'dragging': draggingFilterId === filter.id }"
+                         draggable="true"
+                         @dragstart="handleDragStart(filter, index, $event)"
+                         @dragover.prevent="handleDragOver(index, $event)"
+                         @dragleave="handleDragLeave($event)"
+                         @drop="handleDrop(index, $event)"
+                         @dragend="handleDragEnd">
+                <span class="drag-handle">☰</span>
                 <input type="text" v-model="filter.name" placeholder="필터 이름">
                 <input type="text" v-model="filter.regex" placeholder="정규식">
                 <input type="number" v-model.number="filter.group" placeholder="캡쳐 그룹">
@@ -237,18 +261,30 @@
             const isEditModalVisible = ref(false);
             const editingData = ref(null);
 
+            // Drag and Drop state for filters
+            const draggingFilterId = ref(null);
+            const dragStartIndex = ref(-1);
+
             // --- LOCAL STORAGE ---
             const STORAGE_KEY = 'experiment-app-data';
             const saveState = () => localStorage.setItem(STORAGE_KEY, JSON.stringify(experiments.value));
             const loadState = () => {
                 const savedData = localStorage.getItem(STORAGE_KEY);
-                if (savedData) experiments.value = JSON.parse(savedData);
-                else { // 초기 예제 데이터
+                if (savedData) {
+                    const loadedExperiments = JSON.parse(savedData);
+                    // Ensure filters have unique IDs for older data
+                    loadedExperiments.forEach(exp => {
+                        exp.filters.forEach(filter => {
+                            if (!filter.id) filter.id = Date.now() + Math.random();
+                        });
+                    });
+                    experiments.value = loadedExperiments;
+                } else { // 초기 예제 데이터
                     experiments.value = [{
                         id: Date.now(), name: "성능 측정 예제",
                         filters: [
-                            { name: 'GDB', regex: 'GDB load time: (\\d+\\.\\d+)', group: 1 },
-                            { name: 'disassemble', regex: 'disassemble time: (\\d+\\.\\d+)', group: 1 },
+                            { id: 1, name: 'GDB', regex: 'GDB load time: (\\d+\\.\\d+)', group: 1 },
+                            { id: 2, name: 'disassemble', regex: 'disassemble time: (\\d+\\.\\d+)', group: 1 },
                         ],
                         data: [{ id: 1, name: 'bs4', rawText: `GDB load time: 0.85 sec\ndisassemble time: 26.29 sec` }]
                     }];
@@ -303,7 +339,7 @@
             };
             const viewExperiment = (id) => { activeExperimentId.value = id; currentView.value = 'experiment'; isEditingName.value = false; };
             const goHome = () => { currentView.value = 'home'; activeExperimentId.value = null; };
-            const addFilter = () => activeExperiment.value.filters.push({ name: '', regex: '', group: 1 });
+            const addFilter = () => activeExperiment.value.filters.push({ id: Date.now(), name: '', regex: '', group: 1 });
             const removeFilter = (index) => activeExperiment.value.filters.splice(index, 1);
             const addData = () => {
                 if (!newData.value.name.trim() || !newData.value.rawText.trim()) return;
@@ -342,6 +378,43 @@
                 isViewModalVisible.value = false; isEditModalVisible.value = false;
                 modalText.value = ''; editingData.value = null;
             };
+            
+            // DRAG & DROP handlers for filters
+            const handleDragStart = (filter, index, event) => {
+                draggingFilterId.value = filter.id;
+                dragStartIndex.value = index;
+                event.dataTransfer.effectAllowed = 'move';
+                event.dataTransfer.setData('text/plain', index);
+            };
+            
+            const handleDragOver = (index, event) => {
+                event.preventDefault(); // Necessary to allow drop
+                const targetElement = event.currentTarget;
+                if (targetElement.classList.contains('filter-item')) {
+                    document.querySelectorAll('.drag-over-active').forEach(el => el.classList.remove('drag-over-active'));
+                    targetElement.classList.add('drag-over-active');
+                }
+            };
+            
+            const handleDragLeave = (event) => {
+                event.currentTarget.classList.remove('drag-over-active');
+            };
+            
+            const handleDrop = (dropIndex, event) => {
+                event.preventDefault();
+                event.currentTarget.classList.remove('drag-over-active');
+                if (dragStartIndex.value === dropIndex) return;
+
+                const filters = activeExperiment.value.filters;
+                const draggedItem = filters.splice(dragStartIndex.value, 1)[0];
+                filters.splice(dropIndex, 0, draggedItem);
+            };
+
+            const handleDragEnd = () => {
+                draggingFilterId.value = null;
+                dragStartIndex.value = -1;
+                document.querySelectorAll('.drag-over-active').forEach(el => el.classList.remove('drag-over-active'));
+            };
 
             onMounted(loadState);
 
@@ -349,8 +422,10 @@
                 experiments, currentView, activeExperiment, activeExperimentId, newExperimentName,
                 newData, processedData, copyButtonText, isEditingName,
                 isViewModalVisible, isEditModalVisible, modalText, editingData,
+                draggingFilterId, // expose to template
                 createExperiment, deleteExperiment, duplicateExperiment, viewExperiment, goHome, addFilter, removeFilter,
-                addData, deleteData, saveEdit, copyMarkdown, showRawTextModal, showEditModal, closeModal
+                addData, deleteData, saveEdit, copyMarkdown, showRawTextModal, showEditModal, closeModal,
+                handleDragStart, handleDragOver, handleDragLeave, handleDrop, handleDragEnd // expose to template
             };
         }
     });
