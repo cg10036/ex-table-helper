@@ -19,43 +19,29 @@
         }
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-            margin: 0;
-            padding: 2rem;
-            background-color: var(--bg-color);
-            color: var(--text-color);
-            font-size: 16px;
+            margin: 0; padding: 2rem; background-color: var(--bg-color);
+            color: var(--text-color); font-size: 16px;
         }
         [v-cloak] { display: none; }
         #app {
-            max-width: 1200px;
-            margin: 0 auto;
-            display: flex;
-            flex-direction: column;
-            gap: 2rem;
+            max-width: 1200px; margin: 0 auto;
+            display: flex; flex-direction: column; gap: 2rem;
         }
         h1, h2, h3 {
-            color: var(--secondary-color);
-            margin-top: 0;
-            border-bottom: 2px solid var(--border-color);
-            padding-bottom: 0.5rem;
+            color: var(--secondary-color); margin-top: 0;
+            border-bottom: 2px solid var(--border-color); padding-bottom: 0.5rem;
         }
+        .editable-title { cursor: pointer; }
+        .editable-title:hover { background-color: #f0f8ff; }
         .card {
-            background: white;
-            padding: 1.5rem;
-            border-radius: 8px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            background: white; padding: 1.5rem;
+            border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);
         }
         .btn, button {
-            cursor: pointer;
-            padding: 0.6rem 1.2rem;
-            border: none;
-            border-radius: 5px;
-            font-weight: bold;
-            font-size: 0.95rem;
-            transition: all 0.2s ease;
-            display: inline-flex;
-            align-items: center;
-            gap: 0.5rem;
+            cursor: pointer; padding: 0.6rem 1.2rem; border: none;
+            border-radius: 5px; font-weight: bold; font-size: 0.95rem;
+            transition: all 0.2s ease; display: inline-flex;
+            align-items: center; gap: 0.5rem;
         }
         .btn-sm { padding: 0.3rem 0.6rem; font-size: 0.85rem; }
         .btn-primary { background-color: var(--primary-color); color: white; }
@@ -70,22 +56,14 @@
         .btn-warning:hover { background-color: #f59100; }
         
         input[type="text"], input[type="number"], textarea {
-            width: 100%;
-            padding: 0.6rem;
-            border: 1px solid var(--border-color);
-            border-radius: 5px;
-            font-size: 1rem;
-            box-sizing: border-box;
+            width: 100%; padding: 0.6rem; border: 1px solid var(--border-color);
+            border-radius: 5px; font-size: 1rem; box-sizing: border-box;
         }
-        textarea {
-            min-height: 150px;
-            font-family: 'Courier New', Courier, monospace;
-        }
+        textarea { min-height: 150px; font-family: 'Courier New', Courier, monospace; }
         .form-group { margin-bottom: 1rem; }
         .form-group label { display: block; margin-bottom: 0.5rem; font-weight: 600; }
         .flex-container { display: flex; gap: 1rem; align-items: center; }
-        .flex-grow { flex-grow: 1; }
-
+        
         .experiment-list-item {
             display: flex; justify-content: space-between; align-items: center;
             padding: 1rem; border-bottom: 1px solid var(--border-color);
@@ -123,8 +101,7 @@
         }
         .modal-content pre {
             background: #f4f4f4; padding: 1rem; border-radius: 5px;
-            white-space: pre-wrap; word-wrap: break-word; color: #333;
-            flex-grow: 1;
+            white-space: pre-wrap; word-wrap: break-word; color: #333; flex-grow: 1;
         }
         .modal-footer { margin-top: 1rem; text-align: right; }
     </style>
@@ -146,8 +123,9 @@
             <div class="experiment-list">
                 <div v-for="exp in experiments" :key="exp.id" class="experiment-list-item">
                     <span class="experiment-name">{{ exp.name }}</span>
-                    <div class="flex-container">
+                    <div class="flex-container" style="gap: 0.5rem;">
                         <button class="btn btn-primary" @click="viewExperiment(exp.id)">선택</button>
+                        <button class="btn btn-secondary btn-sm" @click.stop="duplicateExperiment(exp.id)">복제</button>
                         <button class="btn btn-danger" @click="deleteExperiment(exp.id)">삭제</button>
                     </div>
                 </div>
@@ -157,16 +135,23 @@
 
     <div v-else-if="currentView === 'experiment' && activeExperiment">
         <header class="flex-container" style="justify-content: space-between;">
-            <h1>🔬 실험: {{ activeExperiment.name }}</h1>
+            <div>
+                <h1 v-if="!isEditingName" @click="isEditingName = true" class="editable-title" title="클릭하여 이름 수정">
+                    🔬 실험: {{ activeExperiment.name }}
+                </h1>
+                <input v-else type="text" v-model="activeExperiment.name" 
+                       @blur="isEditingName = false" @keyup.enter="isEditingName = false"
+                       v-focus class="h1-input" style="font-size: 2em; font-weight: bold; border:none; border-bottom: 2px solid var(--primary-color); padding: 0.5rem 0; width: auto;">
+            </div>
             <button class="btn btn-secondary" @click="goHome">🏠 홈으로 돌아가기</button>
         </header>
-
+        
         <div class="card">
             <h2>전역 필터 설정</h2>
             <div v-for="(filter, index) in activeExperiment.filters" :key="index" class="filter-item">
-                <input type="text" v-model="filter.name" placeholder="필터 이름 (열 제목)">
-                <input type="text" v-model="filter.regex" placeholder="정규식 (e.g., time: (\\d+\\.?\\d*))">
-                <input type="number" v-model.number="filter.group" placeholder="캡쳐 그룹 (e.g., 1)">
+                <input type="text" v-model="filter.name" placeholder="필터 이름">
+                <input type="text" v-model="filter.regex" placeholder="정규식">
+                <input type="number" v-model.number="filter.group" placeholder="캡쳐 그룹">
                 <button class="btn btn-danger" @click="removeFilter(index)">삭제</button>
             </div>
             <button class="btn btn-primary" @click="addFilter" style="margin-top: 1rem;">필터 추가</button>
@@ -176,11 +161,11 @@
             <h2>새 데이터 추가</h2>
             <div style="display: grid; grid-template-columns: 1fr 3fr; gap: 1rem;">
                 <div>
-                    <div class="form-group"><label for="newDataName">데이터 이름</label><input id="newDataName" type="text" v-model="newData.name" placeholder="예: bs4, dask..."></div>
+                    <div class="form-group"><label>데이터 이름</label><input type="text" v-model="newData.name" placeholder="예: bs4"></div>
                     <button class="btn btn-primary" @click="addData" style="width: 100%;">데이터 추가</button>
                 </div>
                 <div>
-                    <div class="form-group"><label for="newDataRaw">원본 텍스트</label><textarea id="newDataRaw" v-model="newData.rawText" placeholder="여기에 로그 텍스트를 붙여넣으세요."></textarea></div>
+                    <div class="form-group"><label>원본 텍스트</label><textarea v-model="newData.rawText" placeholder="로그 텍스트 붙여넣기"></textarea></div>
                 </div>
             </div>
         </div>
@@ -199,7 +184,7 @@
                 <tbody><tr v-for="row in processedData" :key="row.id">
                     <td>{{ row.name }}</td>
                     <td v-for="filter in activeExperiment.filters" :key="filter.name">
-                         <span :title="row.values[filter.name]?.error || ''" :style="{color: row.values[filter.name]?.error ? 'var(--danger-color)' : 'inherit'}">
+                        <span :title="row.values[filter.name]?.error || ''" :style="{color: row.values[filter.name]?.error ? 'var(--danger-color)' : 'inherit'}">
                             {{ row.values[filter.name]?.value || 'N/A' }}
                         </span>
                     </td>
@@ -219,7 +204,6 @@
             <div class="modal-footer"><button class="btn btn-secondary" @click="closeModal">닫기</button></div>
         </div>
     </div>
-
     <div v-if="isEditModalVisible" class="modal-overlay" @click.self="closeModal">
         <div class="modal-content">
             <h3>데이터 수정</h3>
@@ -234,9 +218,9 @@
 </div>
 
 <script>
-    const { createApp, ref, computed, onMounted, watch } = Vue;
+    const { createApp, ref, computed, onMounted, watch, nextTick } = Vue;
 
-    createApp({
+    const app = createApp({
         setup() {
             // --- STATE ---
             const experiments = ref([]);
@@ -245,6 +229,7 @@
             const newExperimentName = ref('');
             const newData = ref({ name: '', rawText: '' });
             const copyButtonText = ref('📋 Markdown으로 복사');
+            const isEditingName = ref(false);
             
             const isViewModalVisible = ref(false);
             const modalText = ref('');
@@ -264,12 +249,8 @@
                         filters: [
                             { name: 'GDB', regex: 'GDB load time: (\\d+\\.\\d+)', group: 1 },
                             { name: 'disassemble', regex: 'disassemble time: (\\d+\\.\\d+)', group: 1 },
-                            { name: 'total time', regex: 'total time: (\\d+\\.\\d+)', group: 1 },
                         ],
-                        data: [
-                            { id: 1, name: 'bs4', rawText: `GDB load time: 0.85 sec\ndisassemble time: 26.29 sec\ntotal time: 27.39 sec` },
-                            { id: 2, name: 'dask', rawText: `GDB load time: 1.12 sec\ndisassemble time: 43.38 sec\ntotal time: 44.85 sec` },
-                        ]
+                        data: [{ id: 1, name: 'bs4', rawText: `GDB load time: 0.85 sec\ndisassemble time: 26.29 sec` }]
                     }];
                 }
             };
@@ -289,8 +270,7 @@
                                 const match = dataRow.rawText.match(re);
                                 result.value = (match && match[filter.group]) ? match[filter.group] : null;
                             } catch (e) {
-                                result.value = '정규식 오류';
-                                result.error = e.message;
+                                result.value = '정규식 오류'; result.error = e.message;
                             }
                         }
                         values[filter.name] = result;
@@ -302,10 +282,7 @@
             // --- METHODS ---
             const createExperiment = () => {
                 if (!newExperimentName.value.trim()) return;
-                const newExp = {
-                    id: Date.now(), name: newExperimentName.value.trim(),
-                    filters: [{ name: "time", regex: "time: (\\d+\\.\\d+)", group: 1 }], data: []
-                };
+                const newExp = { id: Date.now(), name: newExperimentName.value.trim(), filters: [], data: [] };
                 experiments.value.push(newExp);
                 newExperimentName.value = '';
                 viewExperiment(newExp.id);
@@ -316,7 +293,15 @@
                     if (activeExperimentId.value === id) goHome();
                 }
             };
-            const viewExperiment = (id) => { activeExperimentId.value = id; currentView.value = 'experiment'; };
+            const duplicateExperiment = (id) => {
+                const originalExp = experiments.value.find(exp => exp.id === id);
+                if (!originalExp) return;
+                const clonedExp = JSON.parse(JSON.stringify(originalExp)); // Deep copy
+                clonedExp.id = Date.now();
+                clonedExp.name = `${originalExp.name} - 복사본`;
+                experiments.value.push(clonedExp);
+            };
+            const viewExperiment = (id) => { activeExperimentId.value = id; currentView.value = 'experiment'; isEditingName.value = false; };
             const goHome = () => { currentView.value = 'home'; activeExperimentId.value = null; };
             const addFilter = () => activeExperiment.value.filters.push({ name: '', regex: '', group: 1 });
             const removeFilter = (index) => activeExperiment.value.filters.splice(index, 1);
@@ -334,9 +319,7 @@
             const saveEdit = () => {
                 const exp = activeExperiment.value;
                 const dataIndex = exp.data.findIndex(d => d.id === editingData.value.id);
-                if (dataIndex !== -1) {
-                    exp.data[dataIndex] = { ...editingData.value };
-                }
+                if (dataIndex !== -1) exp.data[dataIndex] = { ...editingData.value };
                 closeModal();
             };
             const copyMarkdown = () => {
@@ -356,23 +339,32 @@
             const showRawTextModal = (rawText) => { modalText.value = rawText; isViewModalVisible.value = true; };
             const showEditModal = (row) => { editingData.value = { ...row }; isEditModalVisible.value = true; };
             const closeModal = () => {
-                isViewModalVisible.value = false;
-                isEditModalVisible.value = false;
-                modalText.value = '';
-                editingData.value = null;
+                isViewModalVisible.value = false; isEditModalVisible.value = false;
+                modalText.value = ''; editingData.value = null;
             };
 
             onMounted(loadState);
 
             return {
                 experiments, currentView, activeExperiment, activeExperimentId, newExperimentName,
-                newData, processedData, copyButtonText,
+                newData, processedData, copyButtonText, isEditingName,
                 isViewModalVisible, isEditModalVisible, modalText, editingData,
-                createExperiment, deleteExperiment, viewExperiment, goHome, addFilter, removeFilter,
+                createExperiment, deleteExperiment, duplicateExperiment, viewExperiment, goHome, addFilter, removeFilter,
                 addData, deleteData, saveEdit, copyMarkdown, showRawTextModal, showEditModal, closeModal
             };
         }
-    }).mount('#app');
+    });
+
+    // Custom directive to focus the input element when it's rendered
+    app.directive('focus', {
+        mounted(el) {
+            nextTick(() => {
+                el.focus();
+            });
+        }
+    });
+
+    app.mount('#app');
 </script>
 
 </body>
