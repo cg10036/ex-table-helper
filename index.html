@@ -323,10 +323,38 @@
                 newExperimentName.value = '';
                 viewExperiment(newExp.id);
             };
+
+            // --- ROUTING ---
+            const parseHash = () => {
+                const hash = window.location.hash;
+                const match = hash.match(/^#\/experiment\/(\d+)/);
+                if (match) {
+                    const id = parseInt(match[1], 10);
+                    // 데이터가 로드되었는지 확인 후 실행
+                    if (experiments.value.some(exp => exp.id === id)) {
+                        activeExperimentId.value = id;
+                        currentView.value = 'experiment';
+                    } else {
+                        // 유효하지 않은 ID거나 데이터가 아직 로드되지 않았으면 홈으로 리다이렉트
+                        goHome(true);
+                    }
+                } else {
+                    currentView.value = 'home';
+                    activeExperimentId.value = null;
+                }
+                isEditingName.value = false;
+            };
+
             const deleteExperiment = (id) => {
                 if (confirm('실험을 삭제하면 모든 데이터가 사라집니다. 계속하시겠습니까?')) {
+                    const initialHash = window.location.hash;
                     experiments.value = experiments.value.filter(exp => exp.id !== id);
-                    if (activeExperimentId.value === id) goHome();
+                    if (activeExperimentId.value === id) {
+                        goHome();
+                    } else if (initialHash !== window.location.hash) {
+                         // 해시가 바뀌었다면 (예: 뒤로가기) 다시 파싱
+                        parseHash();
+                    }
                 }
             };
             const duplicateExperiment = (id) => {
@@ -337,8 +365,14 @@
                 clonedExp.name = `${originalExp.name} - 복사본`;
                 experiments.value.push(clonedExp);
             };
-            const viewExperiment = (id) => { activeExperimentId.value = id; currentView.value = 'experiment'; isEditingName.value = false; };
-            const goHome = () => { currentView.value = 'home'; activeExperimentId.value = null; };
+            const viewExperiment = (id) => { window.location.hash = `#/experiment/${id}`; };
+            const goHome = (replace = false) => {
+                if (replace) {
+                    window.location.replace('#/');
+                } else {
+                    window.location.hash = '#/';
+                }
+            };
             const addFilter = () => activeExperiment.value.filters.push({ id: Date.now(), name: '', regex: '', group: 1 });
             const removeFilter = (index) => activeExperiment.value.filters.splice(index, 1);
             const addData = () => {
@@ -416,7 +450,11 @@
                 document.querySelectorAll('.drag-over-active').forEach(el => el.classList.remove('drag-over-active'));
             };
 
-            onMounted(loadState);
+            onMounted(() => {
+                loadState();
+                window.addEventListener('hashchange', parseHash);
+                parseHash(); // Initial load
+            });
 
             return {
                 experiments, currentView, activeExperiment, activeExperimentId, newExperimentName,
