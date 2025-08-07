@@ -125,7 +125,7 @@
                     <span class="experiment-name">{{ exp.name }}</span>
                     <div class="flex-container" style="gap: 0.5rem;">
                         <button class="btn btn-primary" @click="viewExperiment(exp.id)">선택</button>
-                        <button class="btn btn-secondary btn-sm" @click.stop="duplicateExperiment(exp.id)">복제</button>
+                        <button class="btn btn-secondary" @click.stop="duplicateExperiment(exp.id)">복제</button>
                         <button class="btn btn-danger" @click="deleteExperiment(exp.id)">삭제</button>
                     </div>
                 </div>
