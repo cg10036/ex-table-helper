@@ -15,6 +15,7 @@
             --hover-bg-color: #f1f1f1;
             --danger-color: #e53935;
             --info-color: #1e88e5;
+            --warning-color: #f9a825;
         }
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
@@ -65,6 +66,8 @@
         .btn-danger:hover { background-color: #c62828; }
         .btn-info { background-color: var(--info-color); color: white; }
         .btn-info:hover { background-color: #1565c0; }
+        .btn-warning { background-color: var(--warning-color); color: white; }
+        .btn-warning:hover { background-color: #f59100; }
         
         input[type="text"], input[type="number"], textarea {
             width: 100%;
@@ -84,74 +87,46 @@
         .flex-grow { flex-grow: 1; }
 
         .experiment-list-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 1rem;
-            border-bottom: 1px solid var(--border-color);
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 1rem; border-bottom: 1px solid var(--border-color);
         }
         .experiment-list-item:hover { background-color: var(--hover-bg-color); }
         .experiment-list-item:last-child { border-bottom: none; }
         .experiment-name { font-size: 1.2rem; font-weight: 500; }
 
         .filter-item {
-            display: grid;
-            grid-template-columns: 1fr 3fr 1fr auto;
-            gap: 1rem;
-            align-items: center;
-            padding: 0.8rem 0;
+            display: grid; grid-template-columns: 1fr 3fr 1fr auto;
+            gap: 1rem; align-items: center; padding: 0.8rem 0;
             border-bottom: 1px dashed var(--border-color);
         }
 
         table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 1rem;
-            table-layout: fixed;
+            width: 100%; border-collapse: collapse; margin-top: 1rem; table-layout: fixed;
         }
         th, td {
-            border: 1px solid var(--border-color);
-            padding: 0.8rem;
-            text-align: left;
-            word-wrap: break-word;
+            border: 1px solid var(--border-color); padding: 0.8rem;
+            text-align: left; word-wrap: break-word;
         }
-        th {
-            background-color: var(--secondary-color);
-            color: white;
-            font-weight: 600;
-        }
+        th { background-color: var(--secondary-color); color: white; font-weight: 600; }
         tbody tr:nth-child(even) { background-color: #f9f9f9; }
         tbody tr:hover { background-color: #eef8f3; }
         
         .modal-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0,0,0,0.6);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            z-index: 1000;
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.6); display: flex;
+            justify-content: center; align-items: center; z-index: 1000;
         }
         .modal-content {
-            background: white;
-            padding: 2rem;
-            border-radius: 8px;
-            width: 80%;
-            max-width: 800px;
-            max-height: 80vh;
-            overflow-y: auto;
+            background: white; padding: 2rem; border-radius: 8px;
+            width: 80%; max-width: 800px; max-height: 80vh;
+            overflow-y: auto; display: flex; flex-direction: column;
         }
         .modal-content pre {
-            background: #f4f4f4;
-            padding: 1rem;
-            border-radius: 5px;
-            white-space: pre-wrap;
-            word-wrap: break-word;
-            color: #333;
+            background: #f4f4f4; padding: 1rem; border-radius: 5px;
+            white-space: pre-wrap; word-wrap: break-word; color: #333;
+            flex-grow: 1;
         }
+        .modal-footer { margin-top: 1rem; text-align: right; }
     </style>
 </head>
 <body>
@@ -172,14 +147,11 @@
                 <div v-for="exp in experiments" :key="exp.id" class="experiment-list-item">
                     <span class="experiment-name">{{ exp.name }}</span>
                     <div class="flex-container">
-                        <button class="btn btn-primary" @click="viewExperiment(exp.id)">보기</button>
+                        <button class="btn btn-primary" @click="viewExperiment(exp.id)">선택</button>
                         <button class="btn btn-danger" @click="deleteExperiment(exp.id)">삭제</button>
                     </div>
                 </div>
             </div>
-        </div>
-        <div v-else class="card">
-            <p>생성된 실험이 없습니다. 위에서 새 실험을 만들어 주세요.</p>
         </div>
     </div>
 
@@ -204,17 +176,11 @@
             <h2>새 데이터 추가</h2>
             <div style="display: grid; grid-template-columns: 1fr 3fr; gap: 1rem;">
                 <div>
-                    <div class="form-group">
-                        <label for="newDataName">데이터 이름 (Name)</label>
-                        <input id="newDataName" type="text" v-model="newData.name" placeholder="예: bs4, dask...">
-                    </div>
-                     <button class="btn btn-primary" @click="addData" style="width: 100%;">데이터 추가</button>
+                    <div class="form-group"><label for="newDataName">데이터 이름</label><input id="newDataName" type="text" v-model="newData.name" placeholder="예: bs4, dask..."></div>
+                    <button class="btn btn-primary" @click="addData" style="width: 100%;">데이터 추가</button>
                 </div>
                 <div>
-                    <div class="form-group">
-                        <label for="newDataRaw">원본 텍스트 (Raw Text)</label>
-                        <textarea id="newDataRaw" v-model="newData.rawText" placeholder="여기에 로그 또는 원본 텍스트를 붙여넣으세요."></textarea>
-                    </div>
+                    <div class="form-group"><label for="newDataRaw">원본 텍스트</label><textarea id="newDataRaw" v-model="newData.rawText" placeholder="여기에 로그 텍스트를 붙여넣으세요."></textarea></div>
                 </div>
             </div>
         </div>
@@ -225,38 +191,44 @@
                 <button class="btn btn-secondary" @click="copyMarkdown">{{ copyButtonText }}</button>
             </div>
             <table>
-                <thead>
-                    <tr>
-                        <th style="width: 15%;">Name</th>
-                        <th v-for="filter in activeExperiment.filters" :key="filter.name">{{ filter.name }}</th>
-                        <th style="width: 15%;">작업</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr v-for="row in processedData" :key="row.id">
-                        <td>{{ row.name }}</td>
-                        <td v-for="filter in activeExperiment.filters" :key="filter.name">
-                             <span :title="row.values[filter.name]?.error || ''" :style="{color: row.values[filter.name]?.error ? 'var(--danger-color)' : 'inherit'}">
-                                {{ row.values[filter.name]?.value || 'N/A' }}
-                            </span>
-                        </td>
-                        <td>
-                            <div class="flex-container" style="gap: 0.5rem;">
-                                <button class="btn btn-info btn-sm" @click="showRawTextModal(row.rawText)">보기</button>
-                                <button class="btn btn-danger btn-sm" @click="deleteData(row.id)">삭제</button>
-                            </div>
-                        </td>
-                    </tr>
-                </tbody>
+                <thead><tr>
+                    <th style="width: 15%;">Name</th>
+                    <th v-for="filter in activeExperiment.filters" :key="filter.name">{{ filter.name }}</th>
+                    <th style="width: 20%;">작업</th>
+                </tr></thead>
+                <tbody><tr v-for="row in processedData" :key="row.id">
+                    <td>{{ row.name }}</td>
+                    <td v-for="filter in activeExperiment.filters" :key="filter.name">
+                         <span :title="row.values[filter.name]?.error || ''" :style="{color: row.values[filter.name]?.error ? 'var(--danger-color)' : 'inherit'}">
+                            {{ row.values[filter.name]?.value || 'N/A' }}
+                        </span>
+                    </td>
+                    <td><div class="flex-container" style="gap: 0.5rem;">
+                        <button class="btn btn-info btn-sm" @click="showRawTextModal(row.rawText)">보기</button>
+                        <button class="btn btn-warning btn-sm" @click="showEditModal(row)">수정</button>
+                        <button class="btn btn-danger btn-sm" @click="deleteData(row.id)">삭제</button>
+                    </div></td>
+                </tr></tbody>
             </table>
         </div>
     </div>
     
-    <div v-if="isModalVisible" class="modal-overlay" @click.self="closeModal">
+    <div v-if="isViewModalVisible" class="modal-overlay" @click.self="closeModal">
         <div class="modal-content">
-            <h3>원본 텍스트 (Raw Text)</h3>
-            <pre>{{ modalRawText }}</pre>
-            <button class="btn btn-secondary" @click="closeModal" style="margin-top: 1rem;">닫기</button>
+            <h3>원본 텍스트 (Raw Text)</h3><pre>{{ modalText }}</pre>
+            <div class="modal-footer"><button class="btn btn-secondary" @click="closeModal">닫기</button></div>
+        </div>
+    </div>
+
+    <div v-if="isEditModalVisible" class="modal-overlay" @click.self="closeModal">
+        <div class="modal-content">
+            <h3>데이터 수정</h3>
+            <div class="form-group"><label>데이터 이름</label><input type="text" v-model="editingData.name"></div>
+            <div class="form-group"><label>원본 텍스트</label><textarea v-model="editingData.rawText" style="min-height: 250px;"></textarea></div>
+            <div class="modal-footer flex-container" style="justify-content: flex-end;">
+                <button class="btn btn-secondary" @click="closeModal">취소</button>
+                <button class="btn btn-primary" @click="saveEdit">저장</button>
+            </div>
         </div>
     </div>
 </div>
@@ -273,52 +245,38 @@
             const newExperimentName = ref('');
             const newData = ref({ name: '', rawText: '' });
             const copyButtonText = ref('📋 Markdown으로 복사');
-            const isModalVisible = ref(false);
-            const modalRawText = ref('');
+            
+            const isViewModalVisible = ref(false);
+            const modalText = ref('');
+            
+            const isEditModalVisible = ref(false);
+            const editingData = ref(null);
 
             // --- LOCAL STORAGE ---
             const STORAGE_KEY = 'experiment-app-data';
-
-            const saveState = () => {
-                try {
-                    localStorage.setItem(STORAGE_KEY, JSON.stringify(experiments.value));
-                } catch (e) { console.error("Error saving state to localStorage:", e); }
-            };
-
+            const saveState = () => localStorage.setItem(STORAGE_KEY, JSON.stringify(experiments.value));
             const loadState = () => {
-                try {
-                    const savedData = localStorage.getItem(STORAGE_KEY);
-                    if (savedData) {
-                        experiments.value = JSON.parse(savedData);
-                    } else {
-                        experiments.value = [{
-                            id: Date.now(),
-                            name: "성능 측정 예제",
-                            filters: [
-                                { name: 'GDB', regex: 'GDB load time: (\\d+\\.\\d+)', group: 1 },
-                                { name: 'disassemble', regex: 'disassemble time: (\\d+\\.\\d+)', group: 1 },
-                                { name: 'total time', regex: 'total time: (\\d+\\.\\d+)', group: 1 },
-                            ],
-                            data: [
-                                { id: 1, name: 'bs4', rawText: `GDB load time: 0.85 sec\ndisassemble time: 26.29 sec\ntotal time: 27.39 sec` },
-                                { id: 2, name: 'dask', rawText: `GDB load time: 1.12 sec\ndisassemble time: 43.38 sec\ntotal time: 44.85 sec` },
-                                { id: 3, name: 'falcon', rawText: `GDB load time: 1.26 sec\ndisassemble time: 59.94 sec\ntotal time: 61.67 sec` },
-                            ]
-                        }];
-                    }
-                } catch (e) {
-                    console.error("Error loading state from localStorage:", e);
-                    experiments.value = [];
+                const savedData = localStorage.getItem(STORAGE_KEY);
+                if (savedData) experiments.value = JSON.parse(savedData);
+                else { // 초기 예제 데이터
+                    experiments.value = [{
+                        id: Date.now(), name: "성능 측정 예제",
+                        filters: [
+                            { name: 'GDB', regex: 'GDB load time: (\\d+\\.\\d+)', group: 1 },
+                            { name: 'disassemble', regex: 'disassemble time: (\\d+\\.\\d+)', group: 1 },
+                            { name: 'total time', regex: 'total time: (\\d+\\.\\d+)', group: 1 },
+                        ],
+                        data: [
+                            { id: 1, name: 'bs4', rawText: `GDB load time: 0.85 sec\ndisassemble time: 26.29 sec\ntotal time: 27.39 sec` },
+                            { id: 2, name: 'dask', rawText: `GDB load time: 1.12 sec\ndisassemble time: 43.38 sec\ntotal time: 44.85 sec` },
+                        ]
+                    }];
                 }
             };
-            
             watch(experiments, saveState, { deep: true });
 
-            // --- COMPUTED PROPERTIES ---
-            const activeExperiment = computed(() => {
-                return experiments.value.find(exp => exp.id === activeExperimentId.value);
-            });
-
+            // --- COMPUTED ---
+            const activeExperiment = computed(() => experiments.value.find(exp => exp.id === activeExperimentId.value));
             const processedData = computed(() => {
                 if (!activeExperiment.value) return [];
                 return activeExperiment.value.data.map(dataRow => {
@@ -329,9 +287,7 @@
                             try {
                                 const re = new RegExp(filter.regex);
                                 const match = dataRow.rawText.match(re);
-                                if (match && match[filter.group]) {
-                                    result.value = match[filter.group];
-                                }
+                                result.value = (match && match[filter.group]) ? match[filter.group] : null;
                             } catch (e) {
                                 result.value = '정규식 오류';
                                 result.error = e.message;
@@ -348,88 +304,72 @@
                 if (!newExperimentName.value.trim()) return;
                 const newExp = {
                     id: Date.now(), name: newExperimentName.value.trim(),
-                    filters: [{ name: "total time", regex: "total time: (\\d+\\.\\d+)", group: 1 }], data: []
+                    filters: [{ name: "time", regex: "time: (\\d+\\.\\d+)", group: 1 }], data: []
                 };
                 experiments.value.push(newExp);
                 newExperimentName.value = '';
                 viewExperiment(newExp.id);
             };
-
             const deleteExperiment = (id) => {
-                if (confirm('정말로 이 실험을 삭제하시겠습니까? 모든 데이터가 사라집니다.')) {
+                if (confirm('실험을 삭제하면 모든 데이터가 사라집니다. 계속하시겠습니까?')) {
                     experiments.value = experiments.value.filter(exp => exp.id !== id);
                     if (activeExperimentId.value === id) goHome();
                 }
             };
-
-            const viewExperiment = (id) => {
-                activeExperimentId.value = id;
-                currentView.value = 'experiment';
-            };
-
-            const goHome = () => {
-                currentView.value = 'home';
-                activeExperimentId.value = null;
-            };
-
-            const addFilter = () => {
-                activeExperiment.value.filters.push({ name: '', regex: '', group: 1 });
-            };
-
-            const removeFilter = (index) => {
-                activeExperiment.value.filters.splice(index, 1);
-            };
-
+            const viewExperiment = (id) => { activeExperimentId.value = id; currentView.value = 'experiment'; };
+            const goHome = () => { currentView.value = 'home'; activeExperimentId.value = null; };
+            const addFilter = () => activeExperiment.value.filters.push({ name: '', regex: '', group: 1 });
+            const removeFilter = (index) => activeExperiment.value.filters.splice(index, 1);
             const addData = () => {
-                if (!newData.value.name.trim() || !newData.value.rawText.trim()) {
-                    alert('데이터 이름과 원본 텍스트를 모두 입력해야 합니다.');
-                    return;
-                }
-                activeExperiment.value.data.push({
-                    id: Date.now(), name: newData.value.name.trim(), rawText: newData.value.rawText.trim()
-                });
+                if (!newData.value.name.trim() || !newData.value.rawText.trim()) return;
+                activeExperiment.value.data.push({ id: Date.now(), ...newData.value });
                 newData.value = { name: '', rawText: '' };
             };
-
             const deleteData = (dataId) => {
                 if (confirm('이 데이터 항목을 삭제하시겠습니까?')) {
                     const exp = activeExperiment.value;
                     exp.data = exp.data.filter(d => d.id !== dataId);
                 }
             };
-
+            const saveEdit = () => {
+                const exp = activeExperiment.value;
+                const dataIndex = exp.data.findIndex(d => d.id === editingData.value.id);
+                if (dataIndex !== -1) {
+                    exp.data[dataIndex] = { ...editingData.value };
+                }
+                closeModal();
+            };
             const copyMarkdown = () => {
-                if (!activeExperiment.value) return;
                 const headers = ['Name', ...activeExperiment.value.filters.map(f => f.name)];
-                const separator = headers.map(() => '---');
                 const rows = processedData.value.map(row => {
                     const rowData = [row.name, ...activeExperiment.value.filters.map(filter => row.values[filter.name]?.value || 'N/A')];
                     return `| ${rowData.join(' | ')} |`;
                 });
-                const markdown = [`| ${headers.join(' | ')} |`, `| ${separator.join(' | ')} |`, ...rows].join('\n');
+                const markdown = [`| ${headers.join(' | ')} |`, `| ${headers.map(()=>'---').join(' | ')} |`, ...rows].join('\n');
                 navigator.clipboard.writeText(markdown).then(() => {
                     copyButtonText.value = '✅ 복사 완료!';
                     setTimeout(() => { copyButtonText.value = '📋 Markdown으로 복사'; }, 2000);
                 });
             };
 
-            const showRawTextModal = (rawText) => {
-                modalRawText.value = rawText;
-                isModalVisible.value = true;
-            };
-
+            // MODAL Controls
+            const showRawTextModal = (rawText) => { modalText.value = rawText; isViewModalVisible.value = true; };
+            const showEditModal = (row) => { editingData.value = { ...row }; isEditModalVisible.value = true; };
             const closeModal = () => {
-                isModalVisible.value = false;
-                modalRawText.value = '';
+                isViewModalVisible.value = false;
+                isEditModalVisible.value = false;
+                modalText.value = '';
+                editingData.value = null;
             };
 
             onMounted(loadState);
 
             return {
-                experiments, currentView, activeExperimentId, newExperimentName, newData,
-                activeExperiment, processedData, copyButtonText, isModalVisible, modalRawText,
+                experiments, currentView, activeExperiment, activeExperimentId, newExperimentName,
+                newData, processedData, copyButtonText,
+                isViewModalVisible, isEditModalVisible, modalText, editingData,
                 createExperiment, deleteExperiment, viewExperiment, goHome, addFilter, removeFilter,
-                addData, deleteData, copyMarkdown, showRawTextModal, closeModal
+                addData, deleteData, saveEdit, copyMarkdown, showRawTextModal, showEditModal, closeModal
             };
         }
     }).mount('#app');
